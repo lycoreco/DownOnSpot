@@ -8,7 +8,7 @@ use futures::stream::FuturesUnordered;
 use futures::{FutureExt, Stream, StreamExt, pin_mut, select};
 use librespot::audio::{AudioDecrypt, AudioFile};
 use librespot::core::SpotifyUri;
-use librespot::core::audio_key::AudioKey;
+use librespot::core::audio_key::{AudioKey, AudioKeyError};
 use librespot::core::session::Session;
 use librespot::core::spotify_id::SpotifyId;
 use librespot::metadata::audio::AudioFileFormat;
@@ -651,10 +651,28 @@ impl DownloaderInternal {
 
 		let path_clone = path.clone();
 
-		let key = session
-			.audio_key()
-			.request(SpotifyId::try_from(&track.id)?, *file_id)
-			.await?;
+		let track_id = SpotifyId::try_from(&track.id)?;
+		// Spotify can temporarily reject audio keys after requests for many tracks in quick succession
+		// Retry only key rejection and timeout errors, allowing progressively longer recovery intervals
+		let mut retry_delays = [30, 60, 120].into_iter();
+		let key = loop {
+			match session.audio_key().request(track_id, *file_id).await {
+				Ok(key) => break key,
+				Err(e)
+					if matches!(
+						e.error.downcast_ref::<AudioKeyError>(),
+						Some(AudioKeyError::AesKey | AudioKeyError::Timeout)
+					) =>
+				{
+					let Some(delay) = retry_delays.next() else {
+						return Err(e.into());
+					};
+					warn!("Audio key request failed for {id}: {e}. Retrying in {delay} seconds.");
+					tokio::time::sleep(Duration::from_secs(delay)).await;
+				}
+				Err(e) => return Err(e.into()),
+			}
+		};
 		let encrypted = AudioFile::open(session, *file_id, 1024 * 1024).await?;
 		// Enable sequential read-ahead to keep CDN requests within librespot's rate limit
 		let stream_loader = encrypted.get_stream_loader_controller()?;
@@ -997,7 +1015,7 @@ impl DownloaderConfig {
 	// Create new instance
 	pub fn new() -> DownloaderConfig {
 		DownloaderConfig {
-			concurrent_downloads: 4,
+			concurrent_downloads: 1,
 			quality: Quality::Q320,
 			path: "downloads".to_string(),
 			filename_template: "%artist% - %title%".to_string(),
