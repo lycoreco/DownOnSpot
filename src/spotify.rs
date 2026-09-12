@@ -140,10 +140,13 @@ impl Spotify {
 		let url = Url::parse(uri)?;
 		// Track / album / playlist / artist share links use this host
 		if url.host_str() == Some("open.spotify.com") {
-			let path = url
+			let mut path = url
 				.path_segments()
 				.ok_or_else(|| SpotifyError::Error("Missing URL path".into()))?
-				.collect::<Vec<&str>>();
+				.peekable();
+			// Localized share links prefix the item type and ID with an intl-* segment
+			path.next_if(|segment| segment.starts_with("intl-"));
+			let path = path.collect::<Vec<&str>>();
 			if path.len() < 2 {
 				return Err(SpotifyError::InvalidUri);
 			}
