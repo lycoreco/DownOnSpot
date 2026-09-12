@@ -17,7 +17,9 @@ use std::{
 // Structure for holding all the settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-	pub access_token: String,
+	/// Long-lived token from the librespot OAuth login. Used when the credentials cache is missing.
+	#[serde(default)]
+	pub refresh_token: String,
 	pub client_id: String,
 	pub client_secret: String,
 	pub refresh_ui_seconds: u64,
@@ -50,11 +52,18 @@ pub fn get_config_settings_path() -> PathBuf {
 	get_config_folder_path().join("settings.json")
 }
 
+/// Directory where librespot stores reusable login credentials after the first OAuth login
+///
+/// Kept next to `settings.json` so later runs from any working directory reuse the same login
+pub fn get_credentials_cache_path() -> PathBuf {
+	get_config_folder_path().join("credentials_cache")
+}
+
 impl Settings {
 	// Create new instance
-	pub fn new(access_token: &str, client_id: &str, client_secret: &str) -> Settings {
+	pub fn new(client_id: &str, client_secret: &str) -> Settings {
 		Settings {
-			access_token: access_token.to_string(),
+			refresh_token: String::new(),
 			client_id: client_id.to_string(),
 			client_secret: client_secret.to_string(),
 			refresh_ui_seconds: 1,

@@ -1,6 +1,6 @@
 <div align="center">
 
-# DownOnSpot
+# DownOnSpot (fork)
 
 <br>
 </div>
@@ -44,9 +44,10 @@
    - Unix: `~/.config/down_on_spot/settings.json`
 
    The `client_id` and `client_secret` can be obtained by creating an app at [spotify for developers](https://developer.spotify.com).
+   Those values are used for metadata (search, playlists, albums).
 
-   You can obtain your `access_token` by following [this guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started#request-an-access-token).
-   Or [the webplayer](https://open.spotify.com) also uses an access token (with a longer ttl), which you can view by inspecting the network traffic via your browser dev tools, when logged in.
+   The first run opens a browser for Spotify login. After you authorize the app, DownOnSpot stores a `refresh_token` in `settings.json` and reusable credentials next to that file.
+   Later runs reuse those credentials. If they expire, the stored `refresh_token` requests a new access token without opening a browser again.
 
 🎉 Now you can use DownOnSpot
 

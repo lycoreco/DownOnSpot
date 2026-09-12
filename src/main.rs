@@ -40,7 +40,7 @@ async fn start() {
 
 	let args = Args::from_cli();
 
-	let settings = match Settings::load().await {
+	let mut settings = match Settings::load().await {
 		Ok(settings) => {
 			println!("{}.", "Settings successfully loaded.\nContinuing".green());
 			settings
@@ -51,7 +51,7 @@ async fn start() {
 				"Settings could not be loaded, because of the following error:".red(),
 				e
 			);
-			let default_settings = Settings::new("access_token", "client_id", "secret");
+			let default_settings = Settings::new("client_id", "secret");
 			match default_settings.save().await {
 				Ok(path) => {
 					println!(
@@ -72,15 +72,19 @@ async fn start() {
 		}
 	};
 
-	let spotify = match Spotify::new(
-		&settings.access_token,
-		&settings.client_id,
-		&settings.client_secret,
-		settings.market_country_code,
-	)
-	.await
-	{
+	let refresh_token_before = settings.refresh_token.clone();
+	let spotify = match Spotify::new(&mut settings).await {
 		Ok(spotify) => {
+			// Persist the refresh token only when a refresh or browser login issued a new one
+			if settings.refresh_token != refresh_token_before {
+				if let Err(e) = settings.save().await {
+					println!(
+						"{} {}",
+						"Login succeeded, but the updated tokens could not be saved:".yellow(),
+						e
+					);
+				}
+			}
 			println!("{}", "Login succeeded.".green());
 			spotify
 		}
