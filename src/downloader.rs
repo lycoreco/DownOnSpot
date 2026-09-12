@@ -656,7 +656,10 @@ impl DownloaderInternal {
 			.request(SpotifyId::try_from(&track.id)?, *file_id)
 			.await?;
 		let encrypted = AudioFile::open(session, *file_id, 1024 * 1024).await?;
-		let size = encrypted.get_stream_loader_controller()?.len();
+		// Enable sequential read-ahead to keep CDN requests within librespot's rate limit
+		let stream_loader = encrypted.get_stream_loader_controller()?;
+		stream_loader.set_stream_mode();
+		let size = stream_loader.len();
 		// Download
 		let s = match config.convert_to_mp3 {
 			true => {
